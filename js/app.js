@@ -114,9 +114,6 @@
     $("#ro-equipos").textContent = String(Store.equipos().length).padStart(3, "0");
     $("#ro-destinos").textContent = String(Store.destinos().length).padStart(2, "0");
     $("#ro-iot").textContent = String(Store.dispositivos().filter(d => d.estado !== "baja").length).padStart(2, "0");
-    $("#demo-users").innerHTML = Store.usuarios().map(u =>
-      `<button type="button" class="demo-user" data-email="${esc(u.email)}"><span class="avatar">${iniciales(u.nombre)}</span>
-        <span><b>${esc(u.nombre)}</b><small>${esc(u.email)}</small></span><span class="role-tag">${esc(u.rol)}</span></button>`).join("");
   }
   function mostrarApp() {
     const u = Store.user();
@@ -143,12 +140,6 @@
     location.hash = "#/dashboard";
     mostrarApp();
     toast(`Sesión iniciada como ${ROLES[u.rol].nombre}`);
-  });
-  $("#demo-users").addEventListener("click", e => {
-    const b = e.target.closest("[data-email]"); if (!b) return;
-    $("#login-email").value = b.dataset.email;
-    $("#login-pass").value = "vilas123";
-    $("#login-pass").focus();
   });
   $("#btn-logout").addEventListener("click", () => { Store.logout(); location.hash = ""; mostrarLogin(); });
   $("#btn-reset").addEventListener("click", () => {
