@@ -4,7 +4,7 @@
    estados (semáforo), genera alertas y deja registro de auditoría.
    ========================================================================== */
 
-const STORAGE_KEY = "vilasmotor_prototipo_v3";
+const STORAGE_KEY = "vilasmotor_prototipo_v4";
 
 /* ---------------- Roles y permisos (RBAC) ---------------- */
 const ROLES = {

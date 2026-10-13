@@ -6,11 +6,11 @@ Prototipo funcional hecho con **HTML, CSS y JavaScript puro** (sin librerías ni
 Haz doble clic en `index.html` (Chrome o Edge). No necesita internet: las fuentes e íconos van incluidos.
 
 ## Usuarios de prueba
-La contraseña la entrega el equipo del proyecto (no se escribe en el código ni en este documento).
+La contraseña de prueba es la indicada en el informe del proyecto. En el código no aparece en texto plano: solo se guarda su hash con sal.
 
 **Seguridad de contraseñas**
 - Se almacenan solo como hash con sal (campo `password_hash`, PBKDF2-SHA256 con 100.000 iteraciones y sal aleatoria por usuario), nunca en texto plano.
-- Política: mínimo 12 caracteres y al menos un carácter especial (se valida al cambiar la contraseña, botón del candado junto a «Cerrar sesión»).
+- Política: mínimo 12 caracteres y al menos un carácter especial. Se exige al cambiar la contraseña (botón del candado junto a «Cerrar sesión»); la clave inicial de prueba es una excepción de la demo.
 - Bloqueo temporal: 5 intentos fallidos bloquean la cuenta por 5 minutos (queda en la auditoría).
 
 | Usuario | Rol | Qué puede hacer |

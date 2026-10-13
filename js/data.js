@@ -11,11 +11,11 @@ const SEED = {
      Las contraseñas NUNCA se guardan en texto plano: password_hash tiene el formato
      pbkdf2$<iteraciones>$<sal hex>$<hash hex> (PBKDF2-SHA256, sal aleatoria por usuario). */
   usuarios: [
-    { id: 5, nombre: "Rodrigo Soto",    email: "admin@vilasmotors.cl",       password_hash: "pbkdf2$100000$b6a66bf4f9c8bf0d2274f35c095b22f4$86d7b01af49e1db2eacbb3f5669f149205beca8ed99ddb45ed3b774703ca08f9", rol: "admin" },
-    { id: 1, nombre: "James Ramírez",   email: "james@vilasmotors.cl",       password_hash: "pbkdf2$100000$6e2c4f032b645c721efc43312ee18c32$0d9efb80a68139c310aa58d4ed251a0855d14981036a4367f6d724dc61552c36", rol: "encargada" },
-    { id: 2, nombre: "Camila Rojas",    email: "asistente@vilasmotors.cl",   password_hash: "pbkdf2$100000$95350344f5818994173956313378c6a2$cbe260ab564123f6b2844351c9b477bab7c9b778eeff2267e5846d4df78017c8", rol: "asistente" },
-    { id: 3, nombre: "Marcelo Henríquez", email: "ti@vilasmotors.cl",        password_hash: "pbkdf2$100000$29a3ea3d45373a70074a2e3a06ad8167$ca10e3b7ce9593c1526167c770cce76bf45116130332902abd1dfb7d721a5864", rol: "ti" },
-    { id: 4, nombre: "Diego Muñoz",     email: "practicante@vilasmotors.cl", password_hash: "pbkdf2$100000$af6b331ceede6764d9047092f96cf5e9$e30633a4f15df974f2e28f9f30341bb1b99c32903a728fc782b1f4b900f1e9f1", rol: "practicante" }
+    { id: 5, nombre: "Rodrigo Soto",    email: "admin@vilasmotors.cl",       password_hash: "pbkdf2$100000$4dabd090ff2178bf88204df79118f715$1617b153c4cc0ee0a3df4a7f781da82aa8043b141ccd6f06bb8e08d2866ade0b", rol: "admin" },
+    { id: 1, nombre: "James Ramírez",   email: "james@vilasmotors.cl",       password_hash: "pbkdf2$100000$0d2ba11881d66c37402fdfce38bb33af$0385f1199c81c22a211de2a234ce27082b4e6d02a2f85e209402441407918c69", rol: "encargada" },
+    { id: 2, nombre: "Camila Rojas",    email: "asistente@vilasmotors.cl",   password_hash: "pbkdf2$100000$63f3644acfbc644242e9789099e1dda0$3fb02486228fc0f4451f03d8a9c8e2a66265723e0bbceae830bfe4dc1c2a5c5b", rol: "asistente" },
+    { id: 3, nombre: "Marcelo Henríquez", email: "ti@vilasmotors.cl",        password_hash: "pbkdf2$100000$7aa587583018fea8164a1793577cf46a$28548c7f5a7225cfca96b86fdbd180b343da98af129dd6c5421edca8eb1f50f8", rol: "ti" },
+    { id: 4, nombre: "Diego Muñoz",     email: "practicante@vilasmotors.cl", password_hash: "pbkdf2$100000$16bd07e9dd1e15263df29e364ec93b1a$eeaec69ce88e5ca02ad239d4cec7d10017b9a4b97febcb76b64afe7d42626d11", rol: "practicante" }
   ],
 
   /* ---------------- Categorías internas de la flota ---------------- */
