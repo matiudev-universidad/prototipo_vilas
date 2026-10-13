@@ -7,13 +7,15 @@
    ========================================================================== */
 
 const SEED = {
-  /* ---------------- Usuarios y roles (RBAC) ---------------- */
+  /* ---------------- Usuarios y roles (RBAC) ----------------
+     Las contraseñas NUNCA se guardan en texto plano: password_hash tiene el formato
+     pbkdf2$<iteraciones>$<sal hex>$<hash hex> (PBKDF2-SHA256, sal aleatoria por usuario). */
   usuarios: [
-    { id: 5, nombre: "Rodrigo Soto",    email: "admin@vilasmotors.cl",       password: "vilas123", rol: "admin" },
-    { id: 1, nombre: "James Ramírez",   email: "james@vilasmotors.cl",       password: "vilas123", rol: "encargada" },
-    { id: 2, nombre: "Camila Rojas",    email: "asistente@vilasmotors.cl",   password: "vilas123", rol: "asistente" },
-    { id: 3, nombre: "Marcelo Henríquez", email: "ti@vilasmotors.cl",        password: "vilas123", rol: "ti" },
-    { id: 4, nombre: "Diego Muñoz",     email: "practicante@vilasmotors.cl", password: "vilas123", rol: "practicante" }
+    { id: 5, nombre: "Rodrigo Soto",    email: "admin@vilasmotors.cl",       password_hash: "pbkdf2$100000$b6a66bf4f9c8bf0d2274f35c095b22f4$86d7b01af49e1db2eacbb3f5669f149205beca8ed99ddb45ed3b774703ca08f9", rol: "admin" },
+    { id: 1, nombre: "James Ramírez",   email: "james@vilasmotors.cl",       password_hash: "pbkdf2$100000$6e2c4f032b645c721efc43312ee18c32$0d9efb80a68139c310aa58d4ed251a0855d14981036a4367f6d724dc61552c36", rol: "encargada" },
+    { id: 2, nombre: "Camila Rojas",    email: "asistente@vilasmotors.cl",   password_hash: "pbkdf2$100000$95350344f5818994173956313378c6a2$cbe260ab564123f6b2844351c9b477bab7c9b778eeff2267e5846d4df78017c8", rol: "asistente" },
+    { id: 3, nombre: "Marcelo Henríquez", email: "ti@vilasmotors.cl",        password_hash: "pbkdf2$100000$29a3ea3d45373a70074a2e3a06ad8167$ca10e3b7ce9593c1526167c770cce76bf45116130332902abd1dfb7d721a5864", rol: "ti" },
+    { id: 4, nombre: "Diego Muñoz",     email: "practicante@vilasmotors.cl", password_hash: "pbkdf2$100000$af6b331ceede6764d9047092f96cf5e9$e30633a4f15df974f2e28f9f30341bb1b99c32903a728fc782b1f4b900f1e9f1", rol: "practicante" }
   ],
 
   /* ---------------- Categorías internas de la flota ---------------- */

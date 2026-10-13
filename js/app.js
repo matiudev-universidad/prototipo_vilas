@@ -131,10 +131,16 @@
   }
   setInterval(reloj, 1000); reloj();
 
-  $("#login-form").addEventListener("submit", e => {
+  $("#login-form").addEventListener("submit", async e => {
     e.preventDefault();
-    const u = Store.login($("#login-email").value, $("#login-pass").value);
-    if (!u) { $("#login-error").textContent = "Correo o contraseña incorrectos."; return; }
+    const boton = $("#login-form [type=submit]");
+    boton.disabled = true;
+    let r;
+    try { r = await Store.login($("#login-email").value, $("#login-pass").value); }
+    catch (err) { r = { ok: false, error: err.message }; }
+    boton.disabled = false;
+    if (!r.ok) { $("#login-error").textContent = r.error; $("#login-pass").value = ""; return; }
+    const u = r.usuario;
     $("#login-error").textContent = "";
     $("#login-pass").value = "";
     location.hash = "#/dashboard";
@@ -145,10 +151,24 @@
   $("#btn-reset").addEventListener("click", () => {
     if (!confirmar("¿Restablecer todos los datos al estado inicial de data.js? Se perderán los cambios.")) return;
     const id = Store.user().id; Store.reset();
-    const u = Store.usuarios().find(x => x.id === id); Store.login(u.email, u.password);
+    Store.mantenerSesion(id);
     toast("Datos restablecidos"); router();
   });
   function confirmar(msg) { return window.confirm(msg); }
+  $("#btn-password").addEventListener("click", () => {
+    modal("Cambiar contraseña",
+      callout("info", "lock", `Mínimo <b>${Store.PASS_MIN} caracteres</b> y al menos <b>un carácter especial</b> (ej: # $ % & * !). Se guarda solo como hash con sal.`) +
+      `<label>Contraseña actual</label><input id="cp-actual" type="password" autocomplete="current-password">
+       <label>Nueva contraseña</label><input id="cp-nueva" type="password" autocomplete="new-password">
+       <label>Repetir nueva contraseña</label><input id="cp-repetir" type="password" autocomplete="new-password">`,
+      `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="cp-ok">${icon("check")}Guardar</button>`,
+      () => $("#cp-ok").addEventListener("click", async () => {
+        try {
+          await Store.cambiarPassword($("#cp-actual").value, $("#cp-nueva").value, $("#cp-repetir").value);
+          cerrarModal(); toast("Contraseña actualizada");
+        } catch (err) { errorModal(err.message); }
+      }));
+  });
 
   /* ======================================================================
      VISTAS

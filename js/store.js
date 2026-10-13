@@ -4,7 +4,7 @@
    estados (semáforo), genera alertas y deja registro de auditoría.
    ========================================================================== */
 
-const STORAGE_KEY = "vilasmotor_prototipo_v2";
+const STORAGE_KEY = "vilasmotor_prototipo_v3";
 
 /* ---------------- Roles y permisos (RBAC) ---------------- */
 const ROLES = {
@@ -27,6 +27,7 @@ const Store = (function () {
     } catch (e) { db = clone(SEED); }
     db.incidencias = db.incidencias || [];
     db.telemetria = db.telemetria || [];
+    db.bloqueos = db.bloqueos || {};
     db.telemetriaSync = db.telemetriaSync || { ultima: null, ultimaManual: null };
   }
   function save() {
@@ -43,15 +44,82 @@ const Store = (function () {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
+  /* ---------- Contraseñas (hash con sal) ---------- */
+  const PASS_MIN = 12;
+  const MAX_INTENTOS = 5;               // intentos fallidos antes del bloqueo
+  const BLOQUEO_MS = 5 * 60 * 1000;     // bloqueo temporal de 5 minutos
+  const ITERACIONES = 100000;
+  const hexABytes = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const bytesAHex = b => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, "0")).join("");
+  async function pbkdf2(password, salHex, iteraciones) {
+    if (!(window.crypto && crypto.subtle)) throw new Error("Este navegador no permite verificar contraseñas de forma segura. Usa Chrome o Edge actualizados.");
+    const clave = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: hexABytes(salHex), iterations: iteraciones, hash: "SHA-256" }, clave, 256);
+    return bytesAHex(bits);
+  }
+  async function hashPassword(password) {
+    const sal = bytesAHex(crypto.getRandomValues(new Uint8Array(16)));
+    return `pbkdf2$${ITERACIONES}$${sal}$${await pbkdf2(password, sal, ITERACIONES)}`;
+  }
+  async function verificarPassword(password, passwordHash) {
+    const [alg, iter, sal, hash] = String(passwordHash || "").split("$");
+    if (alg !== "pbkdf2") return false;
+    const calc = await pbkdf2(password, sal, Number(iter));
+    let dif = calc.length ^ hash.length; // comparación de tiempo constante
+    for (let i = 0; i < calc.length; i++) dif |= calc.charCodeAt(i) ^ (hash.charCodeAt(i) || 0);
+    return dif === 0;
+  }
+  /* Política: mínimo 12 caracteres y al menos un carácter especial */
+  function validarPassword(p) {
+    if (!p || p.length < PASS_MIN) throw new Error(`La contraseña debe tener al menos ${PASS_MIN} caracteres.`);
+    if (!/[^A-Za-z0-9]/.test(p)) throw new Error("La contraseña debe incluir al menos un carácter especial (ej: # $ % & * !).");
+  }
+
   /* ---------- Sesión ---------- */
   let usuarioActual = null;
-  function login(email, password) {
-    const u = db.usuarios.find(x => x.email.toLowerCase() === email.trim().toLowerCase() && x.password === password);
-    if (!u) return null;
+  /* Devuelve { ok, usuario } o { ok: false, error, bloqueado } */
+  async function login(email, password) {
+    const clave = String(email || "").trim().toLowerCase();
+    const b = db.bloqueos[clave];
+    if (b && b.hasta > Date.now()) {
+      const min = Math.ceil((b.hasta - Date.now()) / 60000);
+      return { ok: false, bloqueado: true, error: `Cuenta bloqueada temporalmente por intentos fallidos. Intenta de nuevo en ${min} min.` };
+    }
+    const u = db.usuarios.find(x => x.email.toLowerCase() === clave);
+    if (!u || !(await verificarPassword(password, u.password_hash))) {
+      // registro nuevo, o reiniciado si ya venció un bloqueo anterior
+      const reg = !b || (b.hasta && b.hasta <= Date.now()) ? { fallos: 0, hasta: 0 } : b;
+      reg.fallos++;
+      if (reg.fallos >= MAX_INTENTOS) {
+        reg.fallos = 0; reg.hasta = Date.now() + BLOQUEO_MS;
+        db.bloqueos[clave] = reg;
+        audit("Bloqueo de cuenta", `${clave}: ${MAX_INTENTOS} intentos fallidos, bloqueada por ${BLOQUEO_MS / 60000} min`);
+        return { ok: false, bloqueado: true, error: `Demasiados intentos fallidos. La cuenta quedó bloqueada por ${BLOQUEO_MS / 60000} minutos.` };
+      }
+      db.bloqueos[clave] = reg; save();
+      const quedan = MAX_INTENTOS - reg.fallos;
+      return { ok: false, error: `Correo o contraseña incorrectos. Te ${quedan === 1 ? "queda 1 intento" : "quedan " + quedan + " intentos"} antes del bloqueo temporal.` };
+    }
+    delete db.bloqueos[clave];
+    iniciarSesion(u);
+    audit("Inicio de sesión", `${u.nombre} (${ROLES[u.rol].nombre})`);
+    return { ok: true, usuario: u };
+  }
+  function iniciarSesion(u) {
     usuarioActual = u;
     try { sessionStorage.setItem(STORAGE_KEY + "_sesion", String(u.id)); } catch (e) {}
-    audit("Inicio de sesión", `${u.nombre} (${ROLES[u.rol].nombre})`);
-    return u;
+  }
+  /* Mantiene la sesión del usuario ya autenticado (ej: tras restablecer datos) */
+  function mantenerSesion(id) { const u = db.usuarios.find(x => x.id === id); if (u) iniciarSesion(u); return u; }
+  async function cambiarPassword(actual, nueva, repetir) {
+    const u = usuarioActual;
+    if (!u) throw new Error("No hay sesión activa.");
+    if (!(await verificarPassword(actual, u.password_hash))) throw new Error("La contraseña actual no es correcta.");
+    validarPassword(nueva);
+    if (nueva !== repetir) throw new Error("Las contraseñas nuevas no coinciden.");
+    if (nueva === actual) throw new Error("La nueva contraseña debe ser distinta de la actual.");
+    u.password_hash = await hashPassword(nueva);
+    audit("Cambio de contraseña", u.nombre);
   }
   function restoreSession() {
     try {
@@ -356,7 +424,7 @@ const Store = (function () {
 
   load();
   return {
-    reset, save, user, can, login, logout, restoreSession,
+    reset, save, user, can, login, logout, restoreSession, mantenerSesion, cambiarPassword, PASS_MIN,
     usuarios: () => db.usuarios, categorias: () => db.categorias, destinos: () => db.destinos, destino, base: () => db.base, categoria,
     equipos, equipo, crearEquipo, editarEquipo, eliminarEquipo, estadoEquipo,
     lecturas, registrarLectura, resolverIncidencia,
