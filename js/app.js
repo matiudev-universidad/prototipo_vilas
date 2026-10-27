@@ -170,6 +170,40 @@
       }));
   });
 
+  /* Recuperar contraseña (simulado: no se envía ningún correo) */
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  $("#btn-forgot").addEventListener("click", () => {
+    modal("Recuperar contraseña",
+      `<p class="muted">Ingresa el correo asociado a tu cuenta y te enviaremos un enlace para restablecer tu contraseña.</p>
+       <label for="fp-email">Correo</label>
+       <div class="input-icon"><span class="i">${icon("mail")}</span><input id="fp-email" type="email" placeholder="usuario@vilasmotors.cl" autocomplete="email"></div>`,
+      `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="fp-ok">${icon("send")}Restablecer</button>`,
+      m => {
+        m.classList.add("modal-sm");
+        const input = $("#fp-email", m);
+        input.value = $("#login-email").value.trim();
+        input.addEventListener("input", () => { input.classList.remove("invalid"); errorModal(""); });
+        input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); enviar(); } });
+        $("#fp-ok", m).addEventListener("click", enviar);
+        function enviar() {
+          const correo = input.value.trim();
+          if (!correo) { input.classList.add("invalid"); return errorModal("Ingresa tu correo."); }
+          if (!EMAIL_RE.test(correo)) { input.classList.add("invalid"); return errorModal("El formato del correo no es válido (ej: usuario@vilasmotors.cl)."); }
+          const boton = $("#fp-ok", m);
+          boton.disabled = true; boton.innerHTML = `<span class="spinner"></span>Enviando…`;
+          setTimeout(() => {
+            $(".modal-body", m).innerHTML = `<div class="mail-sent">
+                <svg class="check-anim" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-15"/></svg>
+                <h3>Correo enviado</h3>
+                <p>Si <b>${esc(correo)}</b> está registrado, recibirás un enlace para restablecer tu contraseña en los próximos minutos.</p>
+                <p class="muted">Revisa también tu carpeta de spam.</p>
+              </div>`;
+            $(".modal-foot", m).innerHTML = `<button class="btn btn-primary btn-block" data-close>${icon("arrowLeft")}Volver al inicio de sesión</button>`;
+          }, 1100);
+        }
+      });
+  });
+
   /* ======================================================================
      VISTAS
      ====================================================================== */
