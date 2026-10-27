@@ -427,3 +427,21 @@ th.th-sort.active .sort-arrow { opacity: 1; color: var(--red); }
   .mapa-grid { grid-template-columns: 1fr; }
   .mapa { border-right: 0; border-bottom: 1px solid var(--line-2); }
 }
+
+/* ---------------- Recuperar contraseña ---------------- */
+.login-forgot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; font-size: 13.5px; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: var(--red); }
+.modal.modal-sm { max-width: 460px; }
+input.invalid { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.mail-sent { text-align: center; padding: 18px 4px 6px; animation: rise .3s ease; }
+.mail-sent h3 { font-family: var(--display); font-size: 28px; text-transform: uppercase; margin: 14px 0 8px; }
+.mail-sent p { margin: 0 0 6px; }
+.check-anim { width: 84px; height: 84px; fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.check-anim circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw .6s ease-out forwards; }
+.check-anim path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: draw .35s .55s ease-out forwards; }
+.check-anim { animation: pop .3s .85s ease-out; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes pop { 50% { transform: scale(1.08); } }
