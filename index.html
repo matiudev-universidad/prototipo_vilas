@@ -52,10 +52,10 @@
   <!-- ===================== APLICACIÓN ===================== -->
   <section id="app-view" class="hidden">
     <aside class="sidebar">
-      <div class="side-brand">
+      <a class="side-brand" href="#/dashboard" title="Ir al inicio">
         <div class="logo-mark sm">VM</div>
         <div><div class="brand-name">Vila's Motor</div><div class="brand-sub mono">CTRL · MANTENCIONES</div></div>
-      </div>
+      </a>
       <nav class="nav" id="nav"></nav>
       <div class="user-box">
         <div class="avatar" id="user-initials"></div>
@@ -67,7 +67,10 @@
 
     <div class="main">
       <header class="topbar">
-        <div class="crumbs mono" id="crumbs"></div>
+        <div class="top-left">
+          <a class="btn btn-sm btn-home" href="#/dashboard" id="btn-inicio" title="Volver al panel de flota"><span data-icon="home"></span>Inicio</a>
+          <div class="crumbs mono" id="crumbs"></div>
+        </div>
         <div class="top-right">
           <div class="clock mono"><span data-icon="clock"></span><span id="clock"></span></div>
           <button class="btn btn-ghost btn-sm" id="btn-reset" title="Vuelve a los datos de data.js"><span data-icon="reset"></span>Restablecer datos</button>

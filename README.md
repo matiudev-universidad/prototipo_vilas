@@ -23,17 +23,21 @@ La contraseña de prueba es la indicada en el informe del proyecto. En el códig
 
 ## Qué se puede probar
 - **Login con roles**: el menú y los botones cambian según el rol.
-- **Dashboard**: KPIs, próximos vencimientos y estado por categoría (VA / VG / VR / V).
+- **Inicio**: botón «Inicio» en la barra superior (y el logo) vuelven al panel de flota.
+- **Dashboard**: KPIs clicables (llevan a Equipos filtrado por ese estado), próximos vencimientos y estado por categoría (VA / VG / VR / V).
+- **Semáforo de 4 niveles**: verde (operativo), amarillo (próximo, dentro del aviso), naranja (crítico, queda la mitad del aviso o menos) y rojo (vencido).
+- **Lectura programada**: el intervalo se respeta como en el historial (hitos fijos: 250, 500, 750… h). Ej.: V168 hizo la de 3.000 h a las 3.157 h → la siguiente queda programada a las 3.250 h. El «Restante» es positivo si quedan horas/km y negativo si ya se pasó.
 - **Equipos (CRUD)**: crear, editar, buscar/filtrar por destino y dar de baja (baja lógica, conserva historial). La tabla se ordena por código de menor a mayor; clic en un encabezado para cambiar el orden.
 - **Destinos**: cada sucursal tiene su propio sistema (este es el de Iquique); cada equipo registra su *destino* (faena minera, puerto, base, etc.).
-- **Telemetría y horómetros**: equipos en faenas mineras (en uso, detenidos o sin señal). Los horómetros se actualizan solos cada 5 min; «Sincronizar horómetros» fuerza la actualización y luego espera 2 min. Al abrir un equipo se ve su última ubicación en el mapa (requiere internet).
+- **Telemetría y horómetros**: equipos en faenas mineras (en uso, detenidos o sin señal). Los horómetros se actualizan solos cada 5 min; «Sincronizar horómetros» fuerza la actualización y luego espera 2 min. Al hacer clic en un cuadro (En uso, Detenidos, Sin señal) se filtra la tabla. Al abrir un equipo se ve su última ubicación en el mapa (requiere internet).
 - **Ficha del equipo**: horómetro, ciclo actual, historial de mantenciones y lecturas.
 - **Registrar horómetro**: si el valor es menor al último, exige motivo (corrección con trazabilidad).
-- **Registrar mantención**: con insumos y validación de stock (bodega Softland simulada, solo lectura).
+- **Mantenciones**: filtros por equipo, tipo y fechas, con botón «Limpiar filtros».
+- **Registrar mantención**: sugiere la pauta del hito programado; insumos con buscador que carga de a 5 y validación de stock (bodega Softland simulada, solo lectura).
 - **Alertas**: semáforo automático (50 h maquinaria · 300 km camionetas · 1.000 km transporte), marcar «en gestión».
 - **Dispositivos IoT**: «Simular lectura» envía el JSON del ESP32; «Quitar señal» guarda lecturas en cola y «Reconectar» las despacha (store-and-forward); «Reinicio» simula un horómetro que vuelve a 3 h y genera alerta de lectura inconsistente.
 - **Reportes**: reporte por equipo exportable a PDF (Imprimir → Guardar como PDF).
-- **Auditoría** (solo Administrador y TI): quién hizo cada cambio y cuándo.
+- **Auditoría** (solo Administrador y TI): quién hizo cada cambio y cuándo; cada registro se puede abrir para ver el detalle y el equipo relacionado.
 
 ## Datos
 - Todos los datos iniciales están en `js/data.js` (el historial del V168 viene de su planilla real).

@@ -26,6 +26,9 @@
     const on = total ? Math.round(valor / total * 20) : 0;
     return `<div class="segments">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? "on" : ""}"></i>`).join("")}</div>`;
   };
+  /* Restante: positivo = lo que queda para la mantención programada; negativo = exceso (vencida) */
+  const signoRestante = r => (r > 0 ? "+" : r < 0 ? "−" : "") + fmt(Math.abs(r));
+  const COLOR_VAR = { verde: "var(--green)", amarillo: "var(--yellow)", naranja: "var(--orange)", rojo: "var(--red)" };
   const iniciales = n => n.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
 
   /* ---------------- Toast y modal ---------------- */
@@ -223,26 +226,29 @@
     const enCola = disp.reduce((s, d) => s + d.cola.length, 0);
     const total = eqs.length;
 
-    const kpi = (cls, ic, label, valor, sub) => `<div class="kpi ${cls}"><div class="k-label">${icon(ic, 14)}${label}</div>
-      <div class="k-value">${String(valor).padStart(2, "0")}</div><div class="k-sub">${sub}</div>${segmentos(valor, total)}</div>`;
+    /* Cada KPI lleva a la lista de equipos filtrada por ese estado */
+    const kpi = (cls, ic, label, valor, sub) => `<a class="kpi kpi-link ${cls}" href="#/equipos" data-action="ir-equipos" data-id="${cls === "total" ? "" : cls}" title="Ver equipos">
+      <div class="k-label">${icon(ic, 14)}${label}<span class="k-go">${icon("arrowRight", 14)}</span></div>
+      <div class="k-value">${String(valor).padStart(2, "0")}</div><div class="k-sub">${sub}</div>${segmentos(valor, total)}</a>`;
 
-    const COL = { verde: "var(--green)", amarillo: "var(--amber)", rojo: "var(--red)" };
+    const COL = COLOR_VAR;
     const porCat = Store.categorias().map(c => {
       const lista = eqs.filter(e => e.categoria === c.codigo).map(e => Store.estadoEquipo(e).color);
       const tot = lista.length || 1;
       const seg = col => `<span style="width:${lista.filter(x => x === col).length / tot * 100}%;background:${COL[col]}"></span>`;
       return `<div class="cat-row"><div class="cat-top"><b><span class="tag">${c.codigo}</span>&nbsp; ${esc(c.nombre)}</b><span class="mono small muted">${String(lista.length).padStart(2, "0")} EQ</span></div>
-        <div class="stackbar">${seg("verde")}${seg("amarillo")}${seg("rojo")}</div></div>`;
+        <div class="stackbar">${seg("verde")}${seg("amarillo")}${seg("naranja")}${seg("rojo")}</div></div>`;
     }).join("");
 
     return `
       ${cabecera("01 — Panel de flota", "Estado de la flota", "Mantención preventiva según horómetro o kilometraje de cada equipo.",
         Store.can("registrarLectura") ? `<button class="btn btn-primary" data-action="nueva-lectura">${icon("gauge")}Registrar horómetro</button>` : "")}
-      <div class="kpis">
+      <div class="kpis kpis-5">
         ${kpi("total", "truck", "Total flota", total, "equipos activos")}
         ${kpi("verde", "checkCircle", "Operativos", n("verde"), "dentro del intervalo")}
         ${kpi("amarillo", "clock", "Próximos", n("amarillo"), "en rango de aviso")}
-        ${kpi("rojo", "alert", "Vencidos / críticos", n("rojo"), "requieren acción")}
+        ${kpi("naranja", "alert", "Críticos", n("naranja"), "a punto de vencer")}
+        ${kpi("rojo", "alert", "Vencidos", n("rojo"), "requieren acción")}
       </div>
       <div class="grid-main">
         <div class="panel corner">
@@ -251,7 +257,7 @@
         </div>
         <div class="stack">
           <div class="panel panel-pad"><h2 class="panel-title">${icon("dashboard", 20)}Estado por categoría</h2>${porCat}
-            <div class="legend"><span><i style="background:var(--green)"></i>Operativo</span><span><i style="background:var(--amber)"></i>Próximo</span><span><i style="background:var(--red)"></i>Vencido</span></div></div>
+            <div class="legend"><span><i style="background:var(--green)"></i>Operativo</span><span><i style="background:var(--yellow)"></i>Próximo</span><span><i style="background:var(--orange)"></i>Crítico</span><span><i style="background:var(--red)"></i>Vencido</span></div></div>
           <div class="panel panel-pad"><h2 class="panel-title">${icon("antenna", 20)}Telemetría IoT</h2>
             <div class="metrics">
               <div><span>En línea</span><b style="color:var(--green)">${String(online).padStart(2, "0")}</b></div>
@@ -270,10 +276,10 @@
 
   function tablaAlertas(lista, compacta) {
     if (!lista.length) return `<div class="empty">${icon("checkCircle", 32)}Sin alertas en esta vista.</div>`;
-    return `<div class="table-wrap"><table><thead><tr><th>Equipo</th><th>Lectura</th><th>Próxima</th><th>Restante</th><th>Estado</th><th></th></tr></thead><tbody>
+    return `<div class="table-wrap"><table><thead><tr><th>Equipo</th><th>Lectura</th><th class="th-wrap">Lectura programada</th><th>Restante</th><th>Estado</th><th></th></tr></thead><tbody>
       ${lista.map(a => {
         const e = a.equipo, u = U(e.unidad);
-        const est = a.tipo === "inconsistente" ? status("rojo", "Lectura inconsistente", "pulse") : status(a.nivel, a.estado.texto, a.nivel === "rojo" ? "pulse" : "");
+        const est = a.tipo === "inconsistente" ? status("rojo", "Lectura inconsistente", "pulse") : status(a.nivel, a.estado.texto, a.nivel === "rojo" || a.nivel === "naranja" ? "pulse" : "");
         const gestion = a.gestion ? `<div><span class="chip-gestion">${icon("check", 12)}En gestión</span></div>` : "";
         let acc = `<a class="btn btn-sm" href="#/equipo/${e.id}" title="Ver ficha">${icon("eye", 15)}Ver</a>`;
         if (!compacta) {
@@ -285,7 +291,7 @@
         }
         const rest = a.tipo === "inconsistente"
           ? `<span class="small">IoT informó <span class="num"><b>${fmt(a.incidencia.valor)}</b></span> · último ${fmt(a.incidencia.anterior)}</span>`
-          : `<span class="restante ${a.nivel}">${a.estado.restante <= 0 ? "+" + fmt(-a.estado.restante) : fmt(a.estado.restante)}</span><span class="unit">${u}${a.estado.restante <= 0 ? " exc." : ""}</span>`;
+          : `<span class="restante ${a.nivel}">${signoRestante(a.estado.restante)}</span><span class="unit">${u}</span>`;
         return `<tr class="row-${a.nivel}"><td>${celdaEquipo(e)}</td><td>${num(e.horometro, u)}</td><td>${num(a.estado.proxima, u)}</td><td>${rest}</td><td>${est}${gestion}</td>
           <td class="actions">${acc}</td></tr>`;
       }).join("")}</tbody></table></div>`;
@@ -295,7 +301,7 @@
   const filtrosEq = { q: "", cat: "", dest: "", est: "" };
   /* Orden de la tabla de equipos: por defecto de inferior a superior según código */
   const ordenEq = { col: "codigo", asc: true };
-  const ORDEN_ESTADO = { verde: 0, amarillo: 1, rojo: 2 };
+  const ORDEN_ESTADO = { verde: 0, amarillo: 1, naranja: 2, rojo: 3 };
   const claveCodigo = c => { const m = /^([A-Z]+)(\d+)$/i.exec(c) || [c, c, 0]; return [m[1].toUpperCase(), Number(m[2])]; };
   const COMPARAR_EQ = {
     codigo: (a, b) => { const x = claveCodigo(a.codigo), y = claveCodigo(b.codigo); return x[0].localeCompare(y[0]) || x[1] - y[1]; },
@@ -309,6 +315,8 @@
     const activo = ordenEq.col === col;
     return `<th class="th-sort ${activo ? "active" : ""}" data-action="ordenar-eq" data-id="${col}" title="Ordenar">${texto}<span class="sort-arrow">${activo ? (ordenEq.asc ? "▲" : "▼") : "↕"}</span></th>`;
   }
+  const hayFiltros = f => Object.keys(f).some(k => f[k]);
+  const botonLimpiar = accion => `<button class="btn btn-sm btn-ghost btn-clear" data-action="${accion}" title="Quitar todos los filtros">${icon("filterX", 15)}Limpiar filtros</button>`;
   function vEquipos() {
     const lista = Store.equipos().filter(e => {
       const est = Store.estadoEquipo(e).color;
@@ -325,9 +333,10 @@
           <div class="input-icon"><span class="i">${icon("search", 16)}</span><input id="f-q" placeholder="Código, nombre, cliente…" value="${esc(filtrosEq.q)}"></div>
           <select id="f-cat">${opt([{ v: "", t: "Todas las categorías" }].concat(Store.categorias().map(c => ({ v: c.codigo, t: c.codigo + " · " + c.nombre }))), filtrosEq.cat)}</select>
           <select id="f-dest">${opt([{ v: "", t: "Todos los destinos" }].concat(Store.destinos().map(d => ({ v: d.nombre, t: d.nombre + " · " + d.tipo }))), filtrosEq.dest)}</select>
-          <select id="f-est">${opt([{ v: "", t: "Todos los estados" }, { v: "verde", t: "Operativo" }, { v: "amarillo", t: "Próximo" }, { v: "rojo", t: "Vencido / crítico" }], filtrosEq.est)}</select>
+          <select id="f-est">${opt([{ v: "", t: "Todos los estados" }, { v: "verde", t: "Operativo" }, { v: "amarillo", t: "Próximo" }, { v: "naranja", t: "Crítico" }, { v: "rojo", t: "Vencido" }], filtrosEq.est)}</select>
+          ${hayFiltros(filtrosEq) ? botonLimpiar("limpiar-eq") : ""}
         </div><span class="mono small muted">${String(lista.length).padStart(2, "0")} RESULTADOS</span></div>
-        <div class="table-wrap"><table><thead><tr>${thOrden("codigo", "Equipo")}${thOrden("categoria", "Cat.")}${thOrden("destino", "Destino")}${thOrden("lectura", "Lectura actual")}${thOrden("proxima", "Próxima")}${thOrden("estado", "Estado")}<th></th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr>${thOrden("codigo", "Equipo")}${thOrden("categoria", "Cat.")}${thOrden("destino", "Destino")}${thOrden("lectura", "Lectura actual")}${thOrden("proxima", "Lectura programada")}${thOrden("estado", "Estado")}<th></th></tr></thead><tbody>
         ${lista.length ? lista.map(e => {
           const s = Store.estadoEquipo(e), u = U(e.unidad);
           return `<tr class="row-${s.color}"><td><div class="cell-eq"><span class="eq-ico">${iconoTipo(e.tipo, 20)}</span><div><span class="code">${esc(e.codigo)}</span> <b style="display:inline">${esc(e.nombre)}</b>
@@ -384,7 +393,7 @@
     const disp = Store.dispositivos().find(d => d.equipoId === e.id && d.estado !== "baja");
     const mants = Store.mantenciones(e.id), lects = Store.lecturas(e.id);
     const tele = Store.telemetria().find(x => x.equipo.id === e.id);
-    const barColor = { verde: "var(--green)", amarillo: "var(--amber)", rojo: "var(--red)" }[s.color];
+    const barColor = COLOR_VAR[s.color];
     const acciones = `${Store.can("registrarLectura") ? `<button class="btn" data-action="nueva-lectura" data-id="${e.id}">${icon("gauge")}Registrar lectura</button>` : ""}
       ${Store.can("registrarMantencion") ? `<button class="btn btn-primary" data-action="nueva-mantencion" data-id="${e.id}">${icon("wrench")}Registrar mantención</button>` : ""}
       ${Store.can("reportes") ? `<a class="btn" href="#/reportes/${e.id}">${icon("file")}Reporte</a>` : ""}
@@ -394,14 +403,14 @@
       <div class="ficha">
         <div class="panel panel-pad corner">
           <div class="ficha-top"><div class="ficha-ico">${iconoTipo(e.tipo, 40)}</div>
-            <div><span class="code">${esc(e.codigo)}</span>&nbsp; ${status(s.color, s.texto, s.color === "rojo" ? "pulse" : "")}
+            <div><span class="code">${esc(e.codigo)}</span>&nbsp; ${status(s.color, s.texto, s.color === "rojo" || s.color === "naranja" ? "pulse" : "")}
               <h2>${esc(e.nombre)}</h2><div class="muted">${esc(e.marca)} ${esc(e.modelo)} · ${esc(Store.categoria(e.categoria).nombre)}</div></div></div>
           <div class="spec">
             <div><span>Destino</span><b>${esc(e.destino)}</b></div>
             <div><span>Tipo de destino</span><b>${esc(Store.destino(e.destino).tipo)}</b></div>
             <div><span>Cliente actual</span><b>${esc(e.cliente)}</b></div>
             <div><span>Patente / serie</span><b class="mono">${esc(e.patente || "—")}</b></div>
-            <div><span>Intervalo</span><b>cada ${fmt(e.intervalo)} ${u}</b></div>
+            <div><span>Intervalo</span><b>cada ${fmt(e.intervalo)} ${u}</b><div class="small muted">Programada: ${fmt(s.proxima)} ${u} (Preventiva ${fmt(Store.pautaDeHito(e, s.proxima))} ${u})</div></div>
             <div><span>Aviso anticipado</span><b>${fmt(e.aviso)} ${u} antes</b></div>
             <div><span>Ubicación GPS</span><b class="mono">${e.lat != null ? e.lat.toFixed(2) + ", " + e.lng.toFixed(2) : "—"}</b></div>
             <div><span>Dispositivo IoT</span><b>${disp ? `<span class="mono">${esc(disp.deviceId)}</span>` : "Sin dispositivo"}</b>
@@ -413,12 +422,12 @@
           <div class="odo">${odometro(e.horometro)}<span class="u">${u}</span></div>
           ${tele ? `<div class="sub" style="margin-bottom:4px">Telemetría: <b class="mono" style="color:#fff">${fmtDec(tele.t.horas)} ${u}</b> · ${tele.online ? (tele.t.enUso ? "motor encendido" : "detenida") : "sin señal"}</div>` : ""}
           <div class="sub">Última lectura ${lects[0] ? fecha(lects[0].fecha) + " · " + (lects[0].origen === "ESP32" ? "automática (ESP32)" : "manual") : "—"}</div>
-          <div style="display:flex;justify-content:space-between;margin-top:18px" class="mono small"><span style="color:#9a968f">CICLO ACTUAL</span><span>${fmt(e.horometro - e.ultimaMantencion)} / ${fmt(e.intervalo)} ${u}</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:18px" class="mono small"><span style="color:#9a968f">CICLO ACTUAL</span><span>${fmt(s.usado)} / ${fmt(e.intervalo)} ${u}</span></div>
           <div class="bar ticks"><span style="width:${s.progreso}%;background:${barColor}"></span></div>
           <div class="meter-grid">
             <div><span>Última mant.</span><b>${fmt(e.ultimaMantencion)}</b></div>
-            <div><span>Próxima</span><b>${fmt(s.proxima)}</b></div>
-            <div><span>Restante</span><b class="${s.restante <= 0 ? "rojo" : ""}">${s.restante <= 0 ? "+" + fmt(-s.restante) + " exc." : fmt(s.restante)}</b></div>
+            <div><span>Programada</span><b>${fmt(s.proxima)}</b></div>
+            <div><span>Restante</span><b class="${s.restante <= 0 ? "rojo" : ""}">${signoRestante(s.restante)}</b></div>
           </div>
         </div>
       </div>
@@ -475,23 +484,32 @@
     const s = Store.estadoSync();
     return `<button class="btn btn-primary" data-action="sync-telemetria" data-sync-btn ${s.cooldown ? "disabled" : ""}>${icon("refresh")}<span data-sync-label>${s.cooldown ? "Disponible en " + mmss(s.cooldown) : "Sincronizar horómetros"}</span></button>`;
   }
+  /* Filtro de la tabla al hacer clic en un cuadro: "" (todos) | uso | detenido | sinsenal */
+  let filtroTel = "";
+  const FILTROS_TEL = {
+    uso: { texto: "En uso", ok: x => x.online && x.t.enUso },
+    detenido: { texto: "Detenidos", ok: x => x.online && !x.t.enUso },
+    sinsenal: { texto: "Sin señal", ok: x => !x.online }
+  };
   function vTelemetria() {
-    const lista = Store.telemetria();
+    const todos = Store.telemetria();
     const s = Store.estadoSync();
-    const enUso = lista.filter(x => x.online && x.t.enUso).length;
-    const sinSenal = lista.filter(x => !x.online).length;
-    const kpi = (cls, ic, label, valor, sub) => `<div class="kpi ${cls}"><div class="k-label">${icon(ic, 14)}${label}</div>
-      <div class="k-value">${String(valor).padStart(2, "0")}</div><div class="k-sub">${sub}</div>${segmentos(valor, lista.length)}</div>`;
+    const enUso = todos.filter(FILTROS_TEL.uso.ok).length;
+    const sinSenal = todos.filter(FILTROS_TEL.sinsenal.ok).length;
+    const lista = filtroTel ? todos.filter(FILTROS_TEL[filtroTel].ok) : todos;
+    const kpi = (cls, ic, label, valor, sub, filtro) => `<button type="button" class="kpi kpi-link ${cls} ${filtroTel === filtro ? "selected" : ""}" data-action="filtro-tel" data-id="${filtro}" aria-pressed="${filtroTel === filtro}" title="${filtro ? "Filtrar la tabla" : "Mostrar todos"}">
+      <div class="k-label">${icon(ic, 14)}${label}</div>
+      <div class="k-value">${String(valor).padStart(2, "0")}</div><div class="k-sub">${sub}</div>${segmentos(valor, todos.length)}</button>`;
     return `
       ${cabecera("03 — Faenas mineras", "Telemetría y horómetros", "Equipos en destinos mineros, en uso o detenidos. Los horómetros se actualizan solos cada 5 minutos desde cada ESP32; la sincronización manual queda disponible de nuevo tras 2 minutos.", botonSync())}
       <div class="kpis">
-        ${kpi("total", "truck", "En faenas mineras", lista.length, "equipos")}
-        ${kpi("verde", "play", "En uso", enUso, "motor encendido")}
-        ${kpi("amarillo", "power", "Detenidos", lista.length - enUso - sinSenal, "con señal, sin uso")}
-        ${kpi("rojo", "wifiOff", "Sin señal", sinSenal, "muestra el último valor")}
+        ${kpi("total", "truck", "En faenas mineras", todos.length, "equipos", "")}
+        ${kpi("verde", "play", "En uso", enUso, "motor encendido", "uso")}
+        ${kpi("amarillo", "power", "Detenidos", todos.length - enUso - sinSenal, "con señal, sin uso", "detenido")}
+        ${kpi("rojo", "wifiOff", "Sin señal", sinSenal, "muestra el último valor", "sinsenal")}
       </div>
       <div class="panel corner">
-        <div class="panel-head"><h2>${icon("gauge", 20)}Horómetros en faena</h2>
+        <div class="panel-head"><h2>${icon("gauge", 20)}Horómetros en faena${filtroTel ? `<span class="filter-pill">${esc(FILTROS_TEL[filtroTel].texto)} · ${lista.length}<button type="button" data-action="filtro-tel" data-id="" title="Quitar filtro" aria-label="Quitar filtro">${icon("x", 13)}</button></span>` : ""}</h2>
           <span class="mono small muted">ÚLTIMA SYNC ${s.ultima ? new Date(s.ultima).toLocaleTimeString("es-CL", { hour12: false }) : "—"} · PRÓXIMA AUTOMÁTICA EN <b data-sync-auto>${mmss(s.proximaAuto)}</b></span></div>
         <div class="table-wrap"><table><thead><tr><th>Equipo</th><th>Destino</th><th>Horómetro</th><th>Uso</th><th>Dispositivo</th><th>Última ubicación</th><th></th></tr></thead><tbody>
         ${lista.length ? lista.map(({ equipo: e, t, disp, online }) => {
@@ -504,7 +522,7 @@
             <td>${disp ? `<span class="mono small">${esc(disp.deviceId)}</span><div class="small muted">${disp.ultimaConexion ? fecha(disp.ultimaConexion) : "—"}</div>` : '<span class="muted">Sin dispositivo</span>'}</td>
             <td class="mono small">${e.lat != null ? e.lat.toFixed(3) + ", " + e.lng.toFixed(3) : "—"}</td>
             <td class="actions"><a class="btn btn-sm" href="#/equipo/${e.id}/telemetria">${icon("eye", 15)}Abrir</a></td></tr>`;
-        }).join("") : `<tr><td colspan="7"><div class="empty">${icon("truck", 28)}No hay equipos en destinos mineros.</div></td></tr>`}
+        }).join("") : `<tr><td colspan="7"><div class="empty">${icon("truck", 28)}${filtroTel ? "No hay equipos en este estado." : "No hay equipos en destinos mineros."}</div></td></tr>`}
         </tbody></table></div>
       </div>`;
   }
@@ -533,14 +551,14 @@
   function vAlertas() {
     const todas = Store.alertas();
     const f = {
-      todas, rojo: todas.filter(a => a.nivel === "rojo"), amarillo: todas.filter(a => a.nivel === "amarillo"),
+      todas, rojo: todas.filter(a => a.nivel === "rojo"), naranja: todas.filter(a => a.nivel === "naranja"), amarillo: todas.filter(a => a.nivel === "amarillo"),
       gestion: todas.filter(a => a.gestion), inconsistente: todas.filter(a => a.tipo === "inconsistente")
     };
     const chip = (k, t) => `<button class="chip ${filtroAlerta === k ? "active" : ""}" data-action="filtro-alerta" data-id="${k}">${t}<span class="n">${f[k].length}</span></button>`;
     return `
-      ${cabecera("04 — Alertas", "Alertas del sistema", "Se generan solas al comparar cada lectura con el umbral del equipo: 50 h maquinaria · 300 km camionetas · 1.000 km transporte.")}
+      ${cabecera("04 — Alertas", "Alertas del sistema", "Se generan solas al comparar cada lectura con la lectura programada del equipo (umbral de aviso: 50 h maquinaria · 300 km camionetas · 1.000 km transporte). Restante positivo = lo que queda; negativo = exceso.")}
       <div class="panel corner">
-        <div class="panel-head"><div class="chips">${chip("todas", "Todas")}${chip("rojo", "Vencidas")}${chip("amarillo", "Próximas")}${chip("gestion", "En gestión")}${chip("inconsistente", "Inconsistentes")}</div></div>
+        <div class="panel-head"><div class="chips">${chip("todas", "Todas")}${chip("rojo", "Vencidas")}${chip("naranja", "Críticas")}${chip("amarillo", "Próximas")}${chip("gestion", "En gestión")}${chip("inconsistente", "Inconsistentes")}</div></div>
         ${tablaAlertas(f[filtroAlerta], false)}
       </div>`;
   }
@@ -561,6 +579,7 @@
         <div class="input-icon"><span class="i">${icon("search", 16)}</span><input id="fm-tipo" placeholder="Tipo (ej: 500 h)" value="${esc(filtrosMant.tipo)}" style="width:190px"></div>
         <input id="fm-desde" type="date" value="${filtrosMant.desde}" style="width:auto;height:40px" title="Desde">
         <input id="fm-hasta" type="date" value="${filtrosMant.hasta}" style="width:auto;height:40px" title="Hasta">
+        ${botonLimpiar("limpiar-mant").replace("<button", `<button ${hayFiltros(filtrosMant) ? "" : "disabled"}`)}
       </div><span class="mono small muted">${String(lista.length).padStart(2, "0")} REGISTROS</span></div>
       ${tablaMantenciones(lista, true)}</div>`;
   }
@@ -638,7 +657,7 @@
           <div><span>Destino</span><b>${esc(e.destino)}</b></div><div><span>Cliente</span><b>${esc(e.cliente)}</b></div>
           <div><span>Patente / serie</span><b class="mono">${esc(e.patente || "—")}</b></div>
           <div><span>Lectura actual</span><b class="mono">${fmt(e.horometro)} ${u}</b></div>
-          <div><span>Próxima mantención</span><b class="mono">${fmt(s.proxima)} ${u}</b></div><div><span>Intervalo</span><b>cada ${fmt(e.intervalo)} ${u}</b></div>
+          <div><span>Lectura programada</span><b class="mono">${fmt(s.proxima)} ${u}</b></div><div><span>Intervalo</span><b>cada ${fmt(e.intervalo)} ${u}</b></div>
           <div><span>Estado</span>${status(s.color, s.texto)}</div>
         </div>
         <h3>Historial de mantenciones (${mants.length})</h3>
@@ -648,20 +667,41 @@
 
   /* ---------------- Auditoría ---------------- */
   let filtroAud = "";
+  const auditoriaFiltrada = () => Store.auditoria().filter(a => !filtroAud || (a.usuario + a.accion + a.detalle).toLowerCase().includes(filtroAud.toLowerCase()));
   function vAuditoria() {
-    const lista = Store.auditoria().filter(a => !filtroAud || (a.usuario + a.accion + a.detalle).toLowerCase().includes(filtroAud.toLowerCase()));
+    const lista = auditoriaFiltrada();
     return `
       ${cabecera("09 — Trazabilidad", "Auditoría", "Quién hizo cada cambio y cuándo. Las correcciones guardan el valor anterior.")}
       <div class="panel"><div class="panel-head"><div class="filters"><div class="input-icon"><span class="i">${icon("search", 16)}</span><input id="f-aud" placeholder="Usuario, acción o equipo…" value="${esc(filtroAud)}"></div></div>
         <span class="mono small muted">${String(lista.length).padStart(2, "0")} EVENTOS</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead><tbody>
-      ${lista.map(a => `<tr><td class="mono small" style="white-space:nowrap">${fecha(a.fecha)}</td><td style="white-space:nowrap">${esc(a.usuario)}</td><td><b>${esc(a.accion)}</b></td><td>${esc(a.detalle)}</td></tr>`).join("")}
+      <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th></th></tr></thead><tbody>
+      ${lista.length ? lista.map((a, i) => `<tr class="row-link" data-action="abrir-auditoria" data-id="${i}" tabindex="0" title="Abrir registro"><td class="mono small" style="white-space:nowrap">${fecha(a.fecha)}</td><td style="white-space:nowrap">${esc(a.usuario)}</td><td><b>${esc(a.accion)}</b></td><td>${esc(a.detalle)}</td>
+        <td class="actions"><span class="btn btn-sm">${icon("eye", 15)}Abrir</span></td></tr>`).join("")
+        : `<tr><td colspan="5"><div class="empty">${icon("search", 28)}No hay eventos que coincidan con la búsqueda.</div></td></tr>`}
       </tbody></table></div></div>`;
   }
 
   /* ======================================================================
      FORMULARIOS (modales)
      ====================================================================== */
+  function modalAuditoria(i) {
+    const a = auditoriaFiltrada()[i];
+    if (!a) return;
+    // equipos mencionados en el detalle (ej: "VR55: 119.300 → 119.303 km")
+    const eqs = Store.equipos().filter(e => new RegExp("\\b" + e.codigo + "\\b").test(a.detalle));
+    const extra = Object.keys(a).filter(k => !["fecha", "usuario", "accion", "detalle"].includes(k));
+    modal("Registro de auditoría",
+      `<div class="spec spec-2">
+        <div><span>Fecha y hora</span><b class="mono">${fecha(a.fecha)}</b></div>
+        <div><span>Usuario</span><b>${esc(a.usuario)}</b></div>
+        <div class="full"><span>Acción</span><b>${esc(a.accion)}</b></div>
+        <div class="full"><span>Detalle</span><b style="font-weight:500">${esc(a.detalle)}</b></div>
+        ${extra.map(k => `<div><span>${esc(k === "valorAnterior" ? "Valor anterior" : k)}</span><b class="mono">${esc(typeof a[k] === "number" ? fmt(a[k]) : a[k])}</b></div>`).join("")}
+      </div>
+      ${eqs.length ? `<label>Equipo relacionado</label><div class="aud-eqs">${eqs.map(e => `<a class="btn btn-sm" href="#/equipo/${e.id}" data-close>${icon("eye", 15)}<span class="code">${esc(e.codigo)}</span> ${esc(e.nombre)}</a>`).join("")}</div>` : ""}`,
+      `<button class="btn" data-close>Cerrar</button>`);
+  }
+
   function modalLectura(equipoId) {
     const opciones = Store.equipos().map(e => `<option value="${e.id}" ${e.id === Number(equipoId) ? "selected" : ""}>${esc(e.codigo)} · ${esc(e.nombre)} (${fmt(e.horometro)} ${U(e.unidad)})</option>`).join("");
     modal("Registrar lectura",
@@ -689,6 +729,60 @@
       });
   }
 
+  /* Selector de insumos con buscador: muestra 5 resultados y carga de a 5 más
+     (al bajar con la rueda o con «Ver 5 más»). Devuelve { valor() }. */
+  function comboInsumos(root) {
+    const LOTE = 5;
+    let seleccionado = Store.insumos()[0] ? Store.insumos()[0].codigo : "";
+    let visibles = LOTE, activo = 0, filtrados = [];
+    const etiqueta = i => `${esc(i.nombre)} <span class="muted">— stock ${fmt(i.stock)} ${esc(i.unidad)}</span>`;
+    root.innerHTML = `<button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="combo-value"></span>${icon("chevronDown", 16)}</button>
+      <div class="combo-pop hidden">
+        <div class="input-icon"><span class="i">${icon("search", 16)}</span><input class="combo-search" placeholder="Buscar insumo por nombre o código…" autocomplete="off"></div>
+        <ul class="combo-list" role="listbox"></ul>
+        <div class="combo-foot"><span class="mono small muted combo-count"></span><button type="button" class="btn btn-sm combo-more">${icon("plus", 14)}Ver 5 más</button></div>
+      </div>`;
+    const trigger = $(".combo-trigger", root), pop = $(".combo-pop", root), search = $(".combo-search", root), ul = $(".combo-list", root), more = $(".combo-more", root);
+    const pintarValor = () => {
+      const i = Store.insumos().find(x => x.codigo === seleccionado);
+      $(".combo-value", root).innerHTML = i ? etiqueta(i) : `<span class="muted">Selecciona un insumo…</span>`;
+    };
+    const pintarLista = () => {
+      const q = search.value.trim().toLowerCase();
+      filtrados = Store.insumos().filter(i => !q || (i.nombre + " " + i.codigo).toLowerCase().includes(q));
+      const vista = filtrados.slice(0, visibles);
+      activo = Math.min(activo, Math.max(0, vista.length - 1));
+      ul.innerHTML = vista.length ? vista.map((i, n) => `<li role="option" data-cod="${esc(i.codigo)}" class="${n === activo ? "active" : ""} ${i.codigo === seleccionado ? "sel" : ""}" aria-selected="${i.codigo === seleccionado}">
+          <span>${esc(i.nombre)}<small class="mono">${esc(i.codigo)}</small></span><span class="combo-stock ${i.stock === 0 ? "rojo" : i.stock <= 2 ? "amarillo" : ""}">${fmt(i.stock)} ${esc(i.unidad)}</span></li>`).join("")
+        : `<li class="combo-empty">Sin resultados para «${esc(search.value.trim())}»</li>`;
+      $(".combo-count", root).textContent = filtrados.length ? `${vista.length} DE ${filtrados.length}` : "";
+      more.classList.toggle("hidden", visibles >= filtrados.length);
+    };
+    const abrir = () => { pop.classList.remove("hidden"); trigger.setAttribute("aria-expanded", "true"); search.value = ""; visibles = LOTE; activo = 0; pintarLista(); search.focus(); };
+    const cerrar = () => { pop.classList.add("hidden"); trigger.setAttribute("aria-expanded", "false"); };
+    const elegir = cod => { seleccionado = cod; pintarValor(); cerrar(); trigger.focus(); };
+    const cargarMas = () => { if (visibles < filtrados.length) { visibles += LOTE; pintarLista(); } };
+    trigger.addEventListener("click", () => pop.classList.contains("hidden") ? abrir() : cerrar());
+    search.addEventListener("input", () => { visibles = LOTE; activo = 0; pintarLista(); });
+    search.addEventListener("keydown", ev => {
+      const n = Math.min(visibles, filtrados.length);
+      if (ev.key === "ArrowDown") { ev.preventDefault(); if (activo === n - 1) cargarMas(); activo = Math.min(activo + 1, Math.min(visibles, filtrados.length) - 1); pintarLista(); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); activo = Math.max(0, activo - 1); pintarLista(); }
+      else if (ev.key === "Enter") { ev.preventDefault(); if (filtrados[activo]) elegir(filtrados[activo].codigo); }
+      else if (ev.key === "Escape") { ev.stopPropagation(); cerrar(); trigger.focus(); }
+    });
+    ul.addEventListener("click", ev => { const li = ev.target.closest("li[data-cod]"); if (li) elegir(li.dataset.cod); });
+    ul.addEventListener("scroll", () => { if (ul.scrollTop + ul.clientHeight >= ul.scrollHeight - 4) cargarMas(); });
+    ul.addEventListener("wheel", ev => { if (ev.deltaY > 0 && ul.scrollTop + ul.clientHeight >= ul.scrollHeight - 4) cargarMas(); }, { passive: true });
+    more.addEventListener("click", cargarMas);
+    document.addEventListener("mousedown", function fuera(ev) {
+      if (!document.body.contains(root)) return document.removeEventListener("mousedown", fuera);
+      if (!root.contains(ev.target)) cerrar();
+    });
+    pintarValor();
+    return { valor: () => seleccionado };
+  }
+
   function modalMantencion(equipoId) {
     const eqs = Store.equipos();
     const d0 = new Date(); const hoy = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
@@ -698,20 +792,24 @@
         <div class="full"><label>Equipo *</label><select id="mm-eq">${eqs.map(e => `<option value="${e.id}" ${e.id === Number(equipoId) ? "selected" : ""}>${esc(e.codigo)} · ${esc(e.nombre)}</option>`).join("")}</select></div>
         <div><label>Fecha *</label><input id="mm-fecha" type="date" value="${hoy}"></div>
         <div><label>N° OT</label><input id="mm-ot" placeholder="Opcional"></div>
-        <div><label>Tipo de mantención *</label><select id="mm-tipo"></select></div>
+        <div><label>Tipo de mantención *</label><select id="mm-tipo"></select><div id="mm-pauta" class="mono small muted" style="margin-top:6px"></div></div>
         <div><label>Lectura al momento *</label><input id="mm-valor" type="number" min="0"></div>
         <div class="full"><label>Responsable / taller</label><input id="mm-resp" placeholder="Ej: Taller Iquique"></div>
       </div>
       <label>Insumos utilizados · stock de bodega (solo lectura)</label>
-      <div style="display:flex;gap:8px"><select id="mm-ins">${Store.insumos().map(i => `<option value="${i.codigo}">${esc(i.nombre)} — stock ${i.stock} ${i.unidad}</option>`).join("")}</select>
-        <input id="mm-cant" type="number" min="1" value="1" style="width:84px"><button class="btn btn-dark" id="mm-add" type="button">${icon("plus", 15)}</button></div>
+      <div style="display:flex;gap:8px;align-items:flex-start"><div class="combo" id="mm-ins"></div>
+        <input id="mm-cant" type="number" min="1" value="1" style="width:84px"><button class="btn btn-dark" id="mm-add" type="button" title="Agregar insumo">${icon("plus", 15)}</button></div>
       <div id="mm-lista" style="margin-top:10px"></div>`,
       `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="mm-guardar">${icon("check")}Guardar mantención</button>`,
       () => {
+        const insumo = comboInsumos($("#mm-ins"));
         const actualizarEq = () => {
-          const e = Store.equipo($("#mm-eq").value), u = U(e.unidad);
+          const e = Store.equipo($("#mm-eq").value), u = U(e.unidad), st = Store.estadoEquipo(e);
           const pautas = e.unidad === "km" ? [e.intervalo] : [250, 500, 1000, 2000];
-          $("#mm-tipo").innerHTML = pautas.map(p => `<option>Preventiva ${fmt(p)} ${u}</option>`).join("") + `<option>Correctiva</option>`;
+          // se sugiere la pauta del hito programado (ej: 3.250 h → Preventiva 250 h), respetando el intervalo del historial
+          const sugerida = Store.pautaDeHito(e, st.proxima);
+          $("#mm-tipo").innerHTML = pautas.map(p => `<option ${p === sugerida ? "selected" : ""}>Preventiva ${fmt(p)} ${u}</option>`).join("") + `<option>Correctiva</option>`;
+          $("#mm-pauta").textContent = `PROGRAMADA: ${fmt(st.proxima)} ${u} · PAUTA ${fmt(sugerida)} ${u}`;
           $("#mm-valor").value = e.horometro;
         };
         const pintar = () => {
@@ -724,7 +822,8 @@
         actualizarEq(); pintar();
         $("#mm-eq").addEventListener("change", actualizarEq);
         $("#mm-add").addEventListener("click", () => {
-          const ins = Store.insumos().find(x => x.codigo === $("#mm-ins").value);
+          const ins = Store.insumos().find(x => x.codigo === insumo.valor());
+          if (!ins) return errorModal("Selecciona un insumo de la lista.");
           const cant = Number($("#mm-cant").value);
           if (!(cant > 0)) return errorModal("La cantidad debe ser mayor a 0.");
           errorModal("");
@@ -806,6 +905,11 @@
       "en-gestion": () => modalGestion(id),
       "quitar-gestion": () => intentar(() => { Store.quitarGestion(id); toast("Alerta reabierta"); refrescar(); }),
       "filtro-alerta": () => { filtroAlerta = id; refrescar(); },
+      "ir-equipos": () => { ev.preventDefault(); Object.assign(filtrosEq, { q: "", cat: "", dest: "", est: id || "" }); if (location.hash === "#/equipos") router(); else location.hash = "#/equipos"; },
+      "limpiar-eq": () => { Object.assign(filtrosEq, { q: "", cat: "", dest: "", est: "" }); refrescar(); },
+      "limpiar-mant": () => { Object.assign(filtrosMant, { eq: "", tipo: "", desde: "", hasta: "" }); refrescar(); },
+      "filtro-tel": () => { filtroTel = filtroTel === id ? "" : id; refrescar(); },
+      "abrir-auditoria": () => modalAuditoria(Number(id)),
       "ordenar-eq": () => { ordenEq.asc = ordenEq.col === id ? !ordenEq.asc : true; ordenEq.col = id; refrescar(); },
       "sync-telemetria": () => sincronizar(true),
       "resolver-incidencia": () => modalIncidencia(Number(id)),
@@ -841,7 +945,10 @@
       "rep-eq": () => { location.hash = t.value ? "#/reportes/" + t.value : "#/reportes"; } };
     if (mapa[t.id]) { mapa[t.id](); if (t.id !== "rep-eq") refrescar(); }
   });
-  document.addEventListener("keydown", ev => { if (ev.key === "Escape") cerrarModal(); });
+  document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape") cerrarModal();
+    if (ev.key === "Enter" && ev.target.matches && ev.target.matches("tr[data-action]")) ev.target.click();
+  });
   window.addEventListener("hashchange", router);
 
   /* ---------------- Inicio ---------------- */

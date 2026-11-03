@@ -143,16 +143,33 @@ const Store = (function () {
   }
 
   /* ---------- Cálculo de estado (semáforo) ---------- */
+  /* El intervalo se respeta como en el historial: las mantenciones corresponden a hitos
+     fijos (250, 500, 750… h). Una mantención hecha con atraso (o hasta "aviso" antes) cuenta
+     para su hito, y la siguiente queda programada en el hito que sigue, no en lectura + intervalo.
+     Ej. V168: mantención de 3.000 h hecha a las 3.157 h → programada a las 3.250 h. */
+  function hitoMantencion(eq) {
+    return Math.floor((eq.ultimaMantencion + (eq.aviso || 0)) / eq.intervalo) * eq.intervalo;
+  }
+  /* Semáforo de 4 niveles: verde (operativo) · amarillo (próximo, dentro del aviso)
+     · naranja (crítico, queda la mitad del aviso o menos) · rojo (vencido / inconsistente) */
   function estadoEquipo(eq) {
-    const proxima = eq.ultimaMantencion + eq.intervalo;
+    const hito = hitoMantencion(eq);
+    const proxima = hito + eq.intervalo;
     const restante = proxima - eq.horometro;
-    const usado = eq.horometro - eq.ultimaMantencion;
+    const usado = eq.horometro - hito;
     let color = "verde", texto = "Operativo";
     if (restante <= 0) { color = "rojo"; texto = "Mantención vencida"; }
+    else if (restante <= eq.aviso / 2) { color = "naranja"; texto = "Mantención crítica"; }
     else if (restante <= eq.aviso) { color = "amarillo"; texto = "Próxima mantención"; }
     const incid = db.incidencias.find(i => i.equipoId === eq.id && !i.resuelta);
     if (incid) { color = "rojo"; texto = "Lectura inconsistente"; }
-    return { proxima, restante, color, texto, progreso: Math.min(100, Math.max(0, Math.round(usado / eq.intervalo * 100))) };
+    return { hito, proxima, restante, usado, color, texto, progreso: Math.min(100, Math.max(0, Math.round(usado / eq.intervalo * 100))) };
+  }
+  /* Tipo de pauta que corresponde a un hito (ej: 3.000 h → Preventiva 1000 h, 3.250 h → Preventiva 250 h) */
+  const PAUTAS_H = [2000, 1000, 500, 250];
+  function pautaDeHito(eq, hito) {
+    if (eq.unidad === "km") return eq.intervalo;
+    return PAUTAS_H.find(p => p >= eq.intervalo && hito % p === 0) || eq.intervalo;
   }
   function categoria(cod) { return db.categorias.find(c => c.codigo === cod); }
   function destino(nombre) { return db.destinos.find(d => d.nombre === nombre) || { nombre: nombre || "—", tipo: "—", lat: null, lng: null }; }
@@ -278,7 +295,7 @@ const Store = (function () {
         lista.push({ tipo: "mantencion", nivel: est.color, equipo: eq, estado: est, gestion: db.gestionAlertas.find(g => g.equipoId === eq.id) || null });
       }
     });
-    const orden = { rojo: 0, amarillo: 1 };
+    const orden = { rojo: 0, naranja: 1, amarillo: 2 };
     return lista.sort((a, b) => orden[a.nivel] - orden[b.nivel] || a.estado.restante - b.estado.restante);
   }
   function marcarEnGestion(equipoId, nota) {
@@ -426,7 +443,7 @@ const Store = (function () {
   return {
     reset, save, user, can, login, logout, restoreSession, mantenerSesion, cambiarPassword, PASS_MIN,
     usuarios: () => db.usuarios, categorias: () => db.categorias, destinos: () => db.destinos, destino, base: () => db.base, categoria,
-    equipos, equipo, crearEquipo, editarEquipo, eliminarEquipo, estadoEquipo,
+    equipos, equipo, crearEquipo, editarEquipo, eliminarEquipo, estadoEquipo, pautaDeHito,
     lecturas, registrarLectura, resolverIncidencia,
     mantenciones, registrarMantencion,
     alertas, marcarEnGestion, quitarGestion,
