@@ -341,6 +341,13 @@ td.actions .btn + .btn { margin-left: 4px; }
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .filters .input-icon input { height: 40px; width: 260px; }
 .filters select { width: auto; height: 40px; }
+/* ---------------- Paginación y buscador de equipos ---------------- */
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px; border-top: 1px solid var(--line-2); }
+.pager-btns { display: flex; align-items: center; gap: 10px; }
+.pager .btn[disabled] { opacity: .4; cursor: not-allowed; }
+.eq-search { margin-bottom: 8px; }
+.eq-search input { height: 40px; }
+
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--line); background: var(--paper); border-radius: var(--r); cursor: pointer;
   font-family: var(--display); font-weight: 600; font-size: 14.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }

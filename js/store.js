@@ -4,7 +4,7 @@
    estados (semáforo), genera alertas y deja registro de auditoría.
    ========================================================================== */
 
-const STORAGE_KEY = "vilasmotor_prototipo_v4";
+const STORAGE_KEY = "vilasmotor_prototipo_v5"; // v5: flota real de Iquique (los datos v4 de ejemplo se descartan)
 
 /* ---------------- Roles y permisos (RBAC) ---------------- */
 const ROLES = {
@@ -146,7 +146,7 @@ const Store = (function () {
   /* El intervalo se respeta como en el historial: las mantenciones corresponden a hitos
      fijos (250, 500, 750… h). Una mantención hecha con atraso (o hasta "aviso" antes) cuenta
      para su hito, y la siguiente queda programada en el hito que sigue, no en lectura + intervalo.
-     Ej. V168: mantención de 3.000 h hecha a las 3.157 h → programada a las 3.250 h. */
+     Ej. VR005 (ex V168): mantención de 3.000 h hecha a las 3.157 h → programada a las 3.250 h. */
   function hitoMantencion(eq) {
     return Math.floor((eq.ultimaMantencion + (eq.aviso || 0)) / eq.intervalo) * eq.intervalo;
   }
@@ -171,6 +171,12 @@ const Store = (function () {
     if (eq.unidad === "km") return eq.intervalo;
     return PAUTAS_H.find(p => p >= eq.intervalo && hito % p === 0) || eq.intervalo;
   }
+  /* Aviso anticipado: 50 h maquinaria · 300 km camionetas · 1.000 km transporte (camiones, camas bajas, ramplas) */
+  const TIPOS_TRANSPORTE = ["Camión", "Camión pluma", "Camión tolva", "Camión aljibe", "Camión combustible", "Camión lubricador", "Tracto camión", "Cama baja", "Rampla"];
+  function avisoPara(unidad, tipo, cat) {
+    if (unidad !== "km") return cat.aviso;
+    return TIPOS_TRANSPORTE.includes(tipo) ? 1000 : 300;
+  }
   function categoria(cod) { return db.categorias.find(c => c.codigo === cod); }
   function destino(nombre) { return db.destinos.find(d => d.nombre === nombre) || { nombre: nombre || "—", tipo: "—", lat: null, lng: null }; }
 
@@ -191,7 +197,7 @@ const Store = (function () {
     validarEquipo(d, null);
     const cat = categoria(d.categoria);
     const dest = destino(d.destino);
-    const eq = Object.assign({ id: nextId(db.equipos), activo: true, unidad: cat.unidad, aviso: d.unidad === "km" ? 300 : cat.aviso, lat: dest.lat, lng: dest.lng }, d);
+    const eq = Object.assign({ id: nextId(db.equipos), activo: true, unidad: cat.unidad, aviso: avisoPara(d.unidad || cat.unidad, d.tipo, cat), lat: dest.lat, lng: dest.lng }, d);
     db.equipos.push(eq);
     audit("Alta de equipo", `${eq.codigo} · ${eq.nombre}`);
     return eq;
@@ -219,7 +225,7 @@ const Store = (function () {
   function lecturas(equipoId) {
     return db.lecturas.filter(l => l.equipoId === Number(equipoId)).sort((a, b) => b.fecha.localeCompare(a.fecha));
   }
-  /* origen: "manual" | "ESP32". Devuelve { ok, requiereMotivo, alerta } */
+  /* origen: "manual" | "ESP32" | "GPS". Devuelve { ok, requiereMotivo, alerta } */
   function registrarLectura(equipoId, valor, opts) {
     opts = opts || {};
     const eq = equipo(equipoId);
@@ -235,7 +241,7 @@ const Store = (function () {
       if (!opts.motivo) return { ok: false, requiereMotivo: true, anterior };
       requiere("corregirLectura");
     }
-    if (esCorreccion && origen === "ESP32") {
+    if (esCorreccion && origen !== "manual") {
       // El dispositivo informó menos horas que la última lectura: posible reinicio o falla.
       db.incidencias.push({ id: nextId(db.incidencias), equipoId: eq.id, fecha: opts.fecha || now(), valor, anterior, dispositivo: opts.dispositivo, resuelta: false });
       audit("Lectura inconsistente", `${eq.codigo}: ${opts.dispositivo} informó ${fmt(valor)} con último valor ${fmt(anterior)} (no se actualizó el horómetro)`);
@@ -244,7 +250,7 @@ const Store = (function () {
     }
 
     const l = { id: nextId(db.lecturas), equipoId: eq.id, valor, fecha: opts.fecha || now(), origen,
-      usuario: origen === "ESP32" ? opts.dispositivo : usuarioActual.nombre, esCorreccion,
+      usuario: origen !== "manual" ? opts.dispositivo : usuarioActual.nombre, esCorreccion,
       motivo: opts.motivo || null, valorAnterior: anterior };
     db.lecturas.push(l);
     eq.horometro = valor;
@@ -312,7 +318,11 @@ const Store = (function () {
     audit("Alerta reabierta", `${eq.codigo}`);
   }
 
-  /* ---------- Dispositivos IoT (ESP32) ---------- */
+  /* ---------- Dispositivos IoT (ESP32) y rastreadores GPS ----------
+     ESP32: mide horas de motor encendido. GPS: equipos sin motor ni horómetro (camas bajas,
+     ramplas) que informan ubicación, encendido/movimiento y km recorridos.               */
+  const esGPS = d => !!d && /^GPS-/.test(d.deviceId);
+  const origenDe = d => (esGPS(d) ? "GPS" : "ESP32");
   function dispositivos() { return db.dispositivos; }
   function dispositivo(id) { return db.dispositivos.find(d => d.id === Number(id)); }
   function vincularDispositivo(id, equipoId) {
@@ -328,7 +338,9 @@ const Store = (function () {
   }
   function registrarDispositivo(deviceId, tipo) {
     requiere("gestionarDispositivos");
-    if (!/^ESP32-\d{3}$/.test(deviceId)) throw new Error("El ID debe tener el formato ESP32-000.");
+    const gps = /GPS/i.test(tipo);
+    if (gps && !/^GPS-\d{3}$/.test(deviceId)) throw new Error("El ID de un rastreador GPS debe tener el formato GPS-000.");
+    if (!gps && !/^ESP32-\d{3}$/.test(deviceId)) throw new Error("El ID debe tener el formato ESP32-000.");
     if (db.dispositivos.some(d => d.deviceId === deviceId)) throw new Error("Ya existe un dispositivo con ese ID.");
     const d = { id: nextId(db.dispositivos), deviceId, tipo, equipoId: null, estado: "sin vincular", ultimaConexion: null, cola: [] };
     db.dispositivos.push(d);
@@ -350,11 +362,11 @@ const Store = (function () {
     d.ultimaConexion = now();
     const pendientes = d.cola.splice(0);
     let enviados = 0;
-    pendientes.forEach(p => { const r = registrarLectura(d.equipoId, p.valor, { origen: "ESP32", dispositivo: d.deviceId, fecha: p.fecha }); if (r.ok) enviados++; });
+    pendientes.forEach(p => { const r = registrarLectura(d.equipoId, p.valor, { origen: origenDe(d), dispositivo: d.deviceId, fecha: p.fecha }); if (r.ok) enviados++; });
     audit("Sincronización de cola", `${d.deviceId}: ${pendientes.length} lectura(s) despachadas al reconectar`);
     return { enviados, total: pendientes.length };
   }
-  /* Simula que el ESP32 midió horas de motor encendido y envía el JSON */
+  /* Simula que el ESP32 midió horas de motor encendido (o el GPS los km recorridos) y envía el JSON */
   function simularLectura(id, reinicio) {
     requiere("gestionarDispositivos");
     const d = dispositivo(id);
@@ -363,20 +375,22 @@ const Store = (function () {
     const ultimoEnCola = d.cola.length ? d.cola[d.cola.length - 1].valor : eq.horometro;
     const incremento = eq.unidad === "km" ? 150 + Math.round(Math.random() * 350) : 4 + Math.round(Math.random() * 10);
     const valor = reinicio ? 3 : ultimoEnCola + incremento;
-    const payload = { deviceId: d.deviceId, horas: valor, lat: eq.lat, lng: eq.lng, timestamp: now() };
+    const payload = esGPS(d)
+      ? { deviceId: d.deviceId, odometro_km: valor, encendido: true, lat: eq.lat, lng: eq.lng, timestamp: now() }
+      : { deviceId: d.deviceId, horas: valor, lat: eq.lat, lng: eq.lng, timestamp: now() };
     if (d.estado === "offline") {
       d.cola.push({ valor, fecha: payload.timestamp });
       save();
       return { encolada: true, payload };
     }
     d.ultimaConexion = payload.timestamp;
-    const r = registrarLectura(eq.id, valor, { origen: "ESP32", dispositivo: d.deviceId, fecha: payload.timestamp });
+    const r = registrarLectura(eq.id, valor, { origen: origenDe(d), dispositivo: d.deviceId, fecha: payload.timestamp });
     return Object.assign({ payload }, r);
   }
 
-  /* ---------- Telemetría y horómetros (equipos en faenas mineras) ----------
-     Cada sincronización consulta a los ESP32: si el motor está encendido el horómetro
-     avanza según el tiempo transcurrido y la ubicación GPS se actualiza.            */
+  /* ---------- Telemetría y horómetros (faenas mineras + equipos con GPS) ----------
+     Cada sincronización consulta a los ESP32 y GPS: si el equipo está encendido / en uso
+     el horómetro (o el km del GPS) avanza según el tiempo transcurrido y la ubicación se actualiza. */
   const AUTO_MS = 5 * 60 * 1000;      // actualización automática cada 5 minutos
   const COOLDOWN_MS = 2 * 60 * 1000;  // espera entre sincronizaciones manuales
   function telemetriaDe(eq) {
@@ -385,11 +399,9 @@ const Store = (function () {
     return t;
   }
   function telemetria() {
-    return equipos().filter(e => destino(e.destino).tipo === "Minería").map(eq => {
-      const t = telemetriaDe(eq);
-      const disp = db.dispositivos.find(d => d.equipoId === eq.id && d.estado !== "baja") || null;
-      return { equipo: eq, t, disp, online: !!disp && disp.estado === "online" };
-    });
+    return equipos().map(eq => ({ eq, disp: db.dispositivos.find(d => d.equipoId === eq.id && d.estado !== "baja") || null }))
+      .filter(x => destino(x.eq.destino).tipo === "Minería" || esGPS(x.disp))
+      .map(({ eq, disp }) => ({ equipo: eq, t: telemetriaDe(eq), disp, online: !!disp && disp.estado === "online", gps: esGPS(disp) }));
   }
   function sincronizarTelemetria(manual) {
     const ahora = Date.now();
@@ -413,7 +425,7 @@ const Store = (function () {
       eq.ultimaUbicacion = now();
       actualizados++;
       // el horómetro del sistema registra una lectura cada vez que se completa una hora/km entero
-      if (Math.floor(t.horas) > eq.horometro) registrarLectura(eq.id, Math.floor(t.horas), { origen: "ESP32", dispositivo: disp.deviceId });
+      if (Math.floor(t.horas) > eq.horometro) registrarLectura(eq.id, Math.floor(t.horas), { origen: origenDe(disp), dispositivo: disp.deviceId });
     });
     db.telemetriaSync.ultima = ahora;
     if (manual) {
@@ -443,7 +455,7 @@ const Store = (function () {
   return {
     reset, save, user, can, login, logout, restoreSession, mantenerSesion, cambiarPassword, PASS_MIN,
     usuarios: () => db.usuarios, categorias: () => db.categorias, destinos: () => db.destinos, destino, base: () => db.base, categoria,
-    equipos, equipo, crearEquipo, editarEquipo, eliminarEquipo, estadoEquipo, pautaDeHito,
+    TIPOS_TRANSPORTE, equipos, equipo, crearEquipo, editarEquipo, eliminarEquipo, estadoEquipo, pautaDeHito,
     lecturas, registrarLectura, resolverIncidencia,
     mantenciones, registrarMantencion,
     alertas, marcarEnGestion, quitarGestion,
